@@ -11,20 +11,10 @@ const dateFormat = require('dateformat');
 const mkdirp = require('mkdirp');
 const fs = require('fs');
 
-const isHlsFile = (filename) => filename.endsWith('.ts') || filename.endsWith('.m3u8')
-const isTemFiles = (filename) => filename.endsWith('.tmp')
-const isDashFile = (filename) => filename.endsWith('.mpd') || filename.endsWith('.m4s')
-
 class NodeTransSession extends EventEmitter {
   constructor(conf) {
     super();
     this.conf = conf;
-    this.getConfig = (key = null) => {
-      if (!key) return
-      if (typeof this.conf != 'object') return
-      if (this.conf.args && typeof this.conf.args === 'object' && this.conf.args[key]) return this.conf.args[key]
-      return this.conf[key]
-    }
   }
 
   run() {
@@ -51,7 +41,7 @@ class NodeTransSession extends EventEmitter {
       Logger.log('[Transmuxing MP4] ' + this.conf.streamPath + ' to ' + ouPath + '/' + mp4FileName);
     }
     if (this.conf.hls) {
-      this.conf.hlsFlags = this.getConfig('hlsFlags') || '';
+      this.conf.hlsFlags = this.conf.hlsFlags ? this.conf.hlsFlags : '';
       let hlsFileName = 'index.m3u8';
       let mapHls = `${this.conf.hlsFlags}${ouPath}/${hlsFileName}|`;
       mapStr += mapHls;
@@ -73,8 +63,8 @@ class NodeTransSession extends EventEmitter {
     Array.prototype.push.apply(argv, this.conf.vcParam);
     Array.prototype.push.apply(argv, ['-c:a', ac]);
     Array.prototype.push.apply(argv, this.conf.acParam);
-    Array.prototype.push.apply(argv, ['-f', 'tee', '-map', '0:a?', '-map', '0:v?', mapStr]);
-    // Array.prototype.push.apply(argv, ['-f', 'tee', mapStr]);
+    // Array.prototype.push.apply(argv, ['-f', 'tee', '-map', '0:a?', '-map', '0:v?', mapStr]);
+    Array.prototype.push.apply(argv, ['-f', 'tee', mapStr]);
     // Array.prototype.push.apply(argv, ['-f', 'flv', mapStr]);
     argv = argv.filter((n) => { return n; }); //去空
     Logger.log('[Transmuxing command] ' + argv);
@@ -84,53 +74,34 @@ class NodeTransSession extends EventEmitter {
     });
 
     this.ffmpeg_exec.stdout.on('data', (data) => {
-      Logger.ffdebug(`FF_LOG:${data}`);
+      Logger.ffdebug(`FF输出：${data}`);
     });
 
     this.ffmpeg_exec.stderr.on('data', (data) => {
-      Logger.ffdebug(`FF_LOG:${data}`);
+      Logger.ffdebug(`FF输出：${data}`);
     });
 
     this.ffmpeg_exec.on('close', (code) => {
       Logger.log('[Transmuxing end] ' + this.conf.streamPath);
       this.emit('end');
-      this.cleanTempFiles(ouPath)
-      this.deleteHlsFiles(ouPath)
+      fs.readdir(ouPath, function (err, files) {
+        if (!err) {
+          files.forEach((filename) => {
+            if (filename.endsWith('.ts')
+              || filename.endsWith('.m3u8')
+              || filename.endsWith('.mpd')
+              || filename.endsWith('.m4s')
+              || filename.endsWith('.tmp')) {
+              fs.unlinkSync(ouPath + '/' + filename);
+            }
+          });
+        }
+      });
     });
   }
 
   end() {
     this.ffmpeg_exec.kill();
-  }
-
-  // delete hls files
-  deleteHlsFiles (ouPath) {
-    if ((!ouPath && !this.conf.hls) || this.getConfig('hlsKeep')) return
-    fs.readdir(ouPath, function (err, files) {
-      if (err) return
-      files.filter((filename) => isHlsFile(filename)).forEach((filename) => {
-        fs.unlinkSync(`${ouPath}/${filename}`);
-      });
-    });
-  }
-
-  // delete the other files
-  cleanTempFiles (ouPath) {
-    if (!ouPath) return
-    var _this = this;
-    fs.readdir(ouPath, function (err, files) {
-      if (err) return
-      if(_this.getConfig('dashKeep')){
-        files.filter((filename) => isTemFiles(filename)).forEach((filename) => {
-          fs.unlinkSync(`${ouPath}/${filename}`);
-        });
-      }
-      else {
-        files.filter((filename) => isTemFiles(filename)||isDashFile(filename)).forEach((filename) => {
-          fs.unlinkSync(`${ouPath}/${filename}`);
-        });
-      }
-    });
   }
 }
 

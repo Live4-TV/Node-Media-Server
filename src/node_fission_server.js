@@ -81,12 +81,6 @@ class NodeFissionServer {
       session.end();
     }
   }
-
-  stop() {
-    this.fissionSessions.forEach(session => {
-      session.end();
-    })
-  }
 }
 
 module.exports = NodeFissionServer;

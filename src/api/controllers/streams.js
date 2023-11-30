@@ -116,8 +116,7 @@ function getStream(req, res, next) {
     viewers: 0,
     duration: 0,
     bitrate: 0,
-    startTime: null,
-    arguments: {}
+    startTime: null
   };
 
   let publishStreamPath = `/${req.params.app}/${req.params.stream}`;
@@ -141,7 +140,6 @@ function getStream(req, res, next) {
   streamStats.startTime = streamStats.isLive
     ? publisherSession.connectTime
     : null;
-  streamStats.arguments = !!publisherSession ? publisherSession.publishArgs : {};
 
   res.json(streamStats);
 }
